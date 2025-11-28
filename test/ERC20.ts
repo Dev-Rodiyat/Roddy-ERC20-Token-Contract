@@ -90,7 +90,7 @@ describe("ERC20Token", function () {
       ).to.be.revertedWith("Invalid recipient address");
     });
 
-    it("Should revert if amount zero or less", async function () {
+    it("Should revert if amount is zero or less", async function () {
       const { erc20token, owner, account1 } = await loadFixture(
         deployERC20TokenFixture
       );
@@ -122,7 +122,7 @@ describe("ERC20Token", function () {
       const initialbalanceOfOwner = await erc20token.balanceOf(owner.address);
       const amountToTransfer = hre.ethers.parseUnits("100", 18); //100 tokens
 
-      const tx = await erc20token
+      await erc20token
         .connect(owner)
         .transfer(account1.address, amountToTransfer);
 
@@ -153,6 +153,306 @@ describe("ERC20Token", function () {
       )
         .to.emit(erc20token, "Transfer")
         .withArgs(owner.address, account1.address, amountToTransfer);
+    });
+  });
+
+  describe("Approve Tests", function () {
+    it("Should revert if approver (sender) is address zero", async function () {
+      const { erc20token, owner, account1 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const zeroAddr = hre.ethers.ZeroAddress;
+
+      await hre.network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [zeroAddr],
+      });
+
+      await owner.sendTransaction({
+        to: zeroAddr,
+        value: hre.ethers.parseEther("1.0"),
+      });
+
+      const zeroSigner = await hre.ethers.getSigner(zeroAddr);
+
+      await expect(
+        erc20token.connect(zeroSigner).approve(account1.address, 100)
+      ).to.be.revertedWith("Invalid sender address");
+    });
+
+    it("Should revert if spender (approved) is address zero", async function () {
+      const { erc20token, owner } = await loadFixture(deployERC20TokenFixture);
+
+      await expect(
+        erc20token.connect(owner).approve(hre.ethers.ZeroAddress, 100)
+      ).to.be.revertedWith("Invalid spender address");
+    });
+
+    it("Should revert if approver (sender) has insufficient balance", async function () {
+      const { erc20token, owner, account1 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const amount = hre.ethers.parseUnits("10000000", 18); // 10 million
+
+      await expect(
+        erc20token.connect(owner).approve(account1.address, amount)
+      ).to.be.revertedWith("Insufficient balance");
+    });
+
+    it("Should revert if amount is zero or less", async function () {
+      const { erc20token, owner, account1 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      await expect(
+        erc20token.connect(owner).approve(account1.address, 0)
+      ).to.be.revertedWith("Amount must be greater than zero");
+    });
+
+    it("Should approve spender to spend tokens successfully", async function () {
+      const { erc20token, owner, account1 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      const amountToApprove = hre.ethers.parseUnits("100", 9);
+
+      await erc20token
+        .connect(owner)
+        .approve(account1.address, amountToApprove);
+    });
+
+    it("Should emit Approval event on successful approval", async function () {
+      const { erc20token, owner, account1 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const amountToApprove = hre.ethers.parseUnits("100", 9);
+
+      await expect(
+        erc20token.connect(owner).approve(account1.address, amountToApprove)
+      )
+        .to.emit(erc20token, "Approval")
+        .withArgs(owner.address, account1.address, amountToApprove);
+    });
+  });
+
+  describe("TransferFrom Tests", () => {
+    it("Should revert if caller (spender) is address zero", async () => {
+      const { erc20token, owner, account2 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const zeroAddr = hre.ethers.ZeroAddress;
+
+      await hre.network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [zeroAddr],
+      });
+
+      await owner.sendTransaction({
+        to: zeroAddr,
+        value: hre.ethers.parseEther("1.0"),
+      });
+
+      const zeroSigner = await hre.ethers.getSigner(zeroAddr);
+
+      await expect(
+        erc20token.connect(zeroSigner).transferFrom(owner.address, account2.address, 100)
+      ).to.be.revertedWith("Invalid caller address");
+    });
+
+    it("Should revert if owner is address zero", async () => {
+      const { erc20token, account1, account2 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const zeroAddr = hre.ethers.ZeroAddress;
+
+      await expect(
+        erc20token.connect(account1).transferFrom(zeroAddr, account2.address, 100)
+      ).to.be.revertedWith("Invalid owner address");
+    });
+
+    it("Should revert if recipient is address zero", async () => {
+      const { erc20token, owner, account1 } = await loadFixture(deployERC20TokenFixture);
+
+      await expect(
+        erc20token.connect(account1).transferFrom(owner.address, hre.ethers.ZeroAddress, 100)
+      ).to.be.revertedWith("Invalid recipient address");
+    });
+
+    it("Should revert if amount is zero or less", async () => {
+      const { erc20token, owner, account1, account2 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      await expect(
+        erc20token.connect(account1).transferFrom(owner.address, account2.address, 0)
+      ).to.be.revertedWith("Amount must be greater than zero");
+    });
+
+    it("Should revert if owner has insufficient balance", async () => {
+      const { erc20token, owner, account1, account2 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const amount = hre.ethers.parseUnits("10000000", 24); // 10 million
+
+      await expect(
+        erc20token.connect(account1).transferFrom(owner.address, account2.address, amount)
+      ).to.be.revertedWith("Insufficient balance");
+    });
+
+    it("Should revert if ammount excedes approved amount", async () => {
+      const { erc20token, owner, account1, account2 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      const approvedAmount = hre.ethers.parseUnits("100", 18);
+
+      await expect(
+        erc20token.connect(account1).transferFrom(owner.address, account2.address, approvedAmount)
+      ).to.be.revertedWith("allownce exceeded");
+    });
+
+    it("Should allow account 1 to transfer from owner to account 2 successfully", async () => {
+      const { erc20token, owner, account1, account2 } = await loadFixture(deployERC20TokenFixture);
+
+      await erc20token.connect(owner).approve(account1.address, 100)
+      await erc20token.connect(account1).transferFrom(owner.address, account2.address, 100)
+    })
+
+    it("Should emit Transfer event on successful transfer", async () => {
+      const { erc20token, owner, account1, account2 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const amountToTransfer = hre.ethers.parseUnits("100", 9);
+
+      await erc20token.connect(owner).approve(account1.address, amountToTransfer);
+
+      await expect(
+        erc20token.connect(account1).transferFrom(owner.address, account2.address, amountToTransfer)
+      )
+        .to.emit(erc20token, "Transfer")
+        .withArgs(owner.address, account2.address, amountToTransfer);
+    });
+  });
+
+  describe("Mint Tests", () => {
+    it("Should revert if others users except owner tries to mint token", async () => {
+      const { erc20token, account1 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      await expect(
+        erc20token.connect(account1).mint(account1.address, 100)
+      ).to.be.revertedWith("Only owner can mint token");
+    });
+
+    it("Should revert if recipient is address zero", async () => {
+      const { erc20token, owner } = await loadFixture(deployERC20TokenFixture);
+      const zeroAddr = hre.ethers.ZeroAddress;
+
+      await expect(
+        erc20token.connect(owner).mint(zeroAddr, 100)
+      ).to.be.revertedWith("Invalid recipient address");
+    });
+
+    it("Should revert if amount is zero or less", async () => {
+      const { erc20token, owner } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      await expect(
+        erc20token.connect(owner).mint(owner.address, 0)
+      ).to.be.revertedWith("Amount must be greater than zero");
+    });
+
+    it("Should allow owner to mint token successfully", async () => {
+      const { erc20token, owner } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      const initialbalanceOfOwner = await erc20token.balanceOf(owner.address);
+      const amountToMint = hre.ethers.parseUnits("100", 2);
+
+      await erc20token.connect(owner).mint(owner.address, amountToMint)
+
+      const ownerBalanceAfterMint = await erc20token.balanceOf(
+        owner.address
+      );
+
+      expect(ownerBalanceAfterMint).to.be.greaterThan(initialbalanceOfOwner);
+      expect(ownerBalanceAfterMint).to.equal(
+        initialbalanceOfOwner + amountToMint
+      );
+    });
+
+    it("Should emit Transfer event on successful mint", async () => {
+      const { erc20token, owner } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const amountToMint = hre.ethers.parseUnits("100", 9);
+      const zeroAddr = hre.ethers.ZeroAddress;
+
+      await expect(
+        erc20token.connect(owner).mint(owner.address, amountToMint)
+      )
+        .to.emit(erc20token, "Transfer")
+        .withArgs(zeroAddr, owner.address, amountToMint);
+    });
+  });
+
+  describe("Burn Tests", () => {
+    it("Should revert if amount is zero or less", async () => {
+      const { erc20token, owner } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      await expect(
+        erc20token.connect(owner).burn(0)
+      ).to.be.revertedWith("Amount must be greater than zero");
+    });
+
+    it("Should revert if sender has insufficient balance", async () => {
+      const { erc20token, account1 } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const amount = hre.ethers.parseUnits("10000000", 24);
+
+      await expect(
+        erc20token.connect(account1).burn(amount)
+      ).to.be.revertedWith("Insufficient balance");
+    });
+
+    it("Should allow users to burn token successfully", async () => {
+      const { erc20token, owner } = await loadFixture(
+        deployERC20TokenFixture
+      );
+
+      const initialbalanceOfOwner = await erc20token.balanceOf(owner.address);
+      const amountBurn = hre.ethers.parseUnits("100", 2);
+
+      await erc20token.connect(owner).burn(amountBurn)
+
+      const ownerBalanceAfterBurn = await erc20token.balanceOf(
+        owner.address
+      );
+
+      expect(ownerBalanceAfterBurn).to.be.lessThan(initialbalanceOfOwner);
+      expect(ownerBalanceAfterBurn).to.equal(
+        initialbalanceOfOwner - amountBurn
+      );
+    });
+
+    it("Should emit Transfer event on successful burn", async () => {
+      const { erc20token, owner } = await loadFixture(
+        deployERC20TokenFixture
+      );
+      const amountBurn = hre.ethers.parseUnits("100", 9);
+      const zeroAddr = hre.ethers.ZeroAddress;
+
+      await expect(
+        erc20token.connect(owner).burn(amountBurn)
+      )
+        .to.emit(erc20token, "Transfer")
+        .withArgs(owner.address, zeroAddr, amountBurn);
     });
   });
 });
